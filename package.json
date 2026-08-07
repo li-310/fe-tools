@@ -1,0 +1,19 @@
+{
+  "name": "fe-tools",
+  "version": "1.0.0",
+  "description": "终端交互式数据处理工具集",
+  "bin": {
+    "fe-tools": "bin/fe-tools.js"
+  },
+  "scripts": {
+    "tool": "node bin/fe-tools.js"
+  },
+  "keywords": [
+    "cli",
+    "tools",
+    "utils"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {}
+}
