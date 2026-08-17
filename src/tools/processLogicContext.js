@@ -61,7 +61,10 @@ module.exports = {
       multiline: true,
       run: (input) => {
         const data = JSON.parse(input)
-        return JSON.stringify(processLogicContext(data.logicContext), null, 2)
+        return JSON.stringify({
+          ...data,
+          logicContext: processLogicContext(data.logicContext)
+        }, null, 2)
       }
     }
   ]

@@ -21,6 +21,7 @@ function displayResult(result) {
 
 async function runAction(action) {
   let data = ''
+  let inputFilePath = null
   if (action.needInput !== false) {
     const mode = await selectList('请选择输入方式：', [
       { name: '手动输入', value: 'manual' },
@@ -34,6 +35,7 @@ async function runAction(action) {
         console.log(`\n  读取文件失败：${err.message}\n`)
         return
       }
+      inputFilePath = filePath
     } else if (action.multiline) {
       data = (await readMultiline(action.inputLabel || '请输入数据：')).trim()
     } else {
@@ -52,11 +54,16 @@ async function runAction(action) {
     displayResult(result)
     console.log('  ─────────────────────────────────────\n')
 
-    const choice = await selectList('结果处理：', [
+    const resultChoices = [
       { name: '复制到剪贴板', value: 'copy' },
-      { name: '保存到文件', value: 'save' },
-      { name: '跳过', value: 'skip' }
-    ])
+      { name: '保存到文件', value: 'save' }
+    ]
+    if (inputFilePath) {
+      resultChoices.push({ name: `覆盖写入到原文件（${inputFilePath}）`, value: 'overwrite' })
+    }
+    resultChoices.push({ name: '跳过', value: 'skip' })
+
+    const choice = await selectList('结果处理：', resultChoices)
     if (choice === 'copy') {
       const ok = copyToClipboard(str)
       console.log(ok ? '  已复制到剪贴板。' : '  复制失败（未找到剪贴板工具）。')
@@ -67,6 +74,13 @@ async function runAction(action) {
         console.log(`  已保存到 ${filePath}`)
       } catch (err) {
         console.log(`  保存失败：${err.message}`)
+      }
+    } else if (choice === 'overwrite') {
+      try {
+        fs.writeFileSync(inputFilePath, str, 'utf-8')
+        console.log(`  已覆盖写入到 ${inputFilePath}`)
+      } catch (err) {
+        console.log(`  写入失败：${err.message}`)
       }
     }
   } catch (err) {
