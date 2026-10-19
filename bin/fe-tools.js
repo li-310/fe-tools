@@ -2,11 +2,22 @@
 
 const fs = require('fs')
 const { tools } = require('../src/tools')
+const { loadConfig, getToolConfig } = require('../src/config')
 const { copyToClipboard } = require('../src/utils/clipboard')
 const { selectList, input, readMultiline, closeRl } = require('../src/utils/prompt')
 
 const EXIT = '退出'
 const PREVIEW_LINES = 30
+
+const INPUT_LABELS = {
+  manual: '手动输入',
+  file: '从文件读取（输入文件路径）'
+}
+
+const OUTPUT_LABELS = {
+  copy: '复制到剪贴板',
+  save: '保存到文件'
+}
 
 function displayResult(result) {
   const str = String(result)
@@ -19,14 +30,32 @@ function displayResult(result) {
   console.log(`\n  ... 共 ${lines.length} 行，已省略 ${lines.length - PREVIEW_LINES} 行（可保存到文件查看完整内容）`)
 }
 
-async function runAction(action) {
+async function pickInputMode(allowedInputs) {
+  const modes = allowedInputs.filter((m) => INPUT_LABELS[m])
+  if (!modes.length) return 'manual'
+  if (modes.length === 1) return modes[0]
+  const choices = modes.map((m) => ({ name: INPUT_LABELS[m], value: m }))
+  return selectList('请选择输入方式：', choices)
+}
+
+async function pickOutputMode(allowedOutputs, inputFilePath) {
+  const choices = []
+  if (allowedOutputs.includes('copy')) choices.push({ name: OUTPUT_LABELS.copy, value: 'copy' })
+  if (allowedOutputs.includes('save')) choices.push({ name: OUTPUT_LABELS.save, value: 'save' })
+  if (inputFilePath && allowedOutputs.includes('overwrite')) {
+    choices.push({ name: `覆盖写入到原文件（${inputFilePath}）`, value: 'overwrite' })
+  }
+  choices.push({ name: '跳过', value: 'skip' })
+  if (choices.length === 1) return 'skip'
+  return selectList('结果处理：', choices)
+}
+
+async function runAction(tool, action, config) {
+  const toolConfig = getToolConfig(config, tool.name)
   let data = ''
   let inputFilePath = null
   if (action.needInput !== false) {
-    const mode = await selectList('请选择输入方式：', [
-      { name: '手动输入', value: 'manual' },
-      { name: '从文件读取（输入文件路径）', value: 'file' }
-    ])
+    const mode = await pickInputMode(toolConfig.inputs)
     if (mode === 'file') {
       const filePath = (await input('请输入文件路径：')).trim()
       try {
@@ -54,16 +83,9 @@ async function runAction(action) {
     displayResult(result)
     console.log('  ─────────────────────────────────────\n')
 
-    const resultChoices = [
-      { name: '复制到剪贴板', value: 'copy' },
-      { name: '保存到文件', value: 'save' }
-    ]
-    if (inputFilePath) {
-      resultChoices.push({ name: `覆盖写入到原文件（${inputFilePath}）`, value: 'overwrite' })
-    }
-    resultChoices.push({ name: '跳过', value: 'skip' })
+    if (action.resultHandling === false) return
 
-    const choice = await selectList('结果处理：', resultChoices)
+    const choice = await pickOutputMode(toolConfig.outputs, inputFilePath)
     if (choice === 'copy') {
       const ok = copyToClipboard(str)
       console.log(ok ? '  已复制到剪贴板。' : '  复制失败（未找到剪贴板工具）。')
@@ -97,6 +119,8 @@ async function pickAction(tool) {
 }
 
 async function main() {
+  const config = loadConfig()
+
   console.log('\n  ╔════════════════════════════════════╗')
   console.log('  ║        FE-Tools 数据处理工具        ║')
   console.log('  ╚════════════════════════════════════╝\n')
@@ -110,7 +134,8 @@ async function main() {
     if (!tool) break
 
     const action = await pickAction(tool)
-    await runAction(action)
+    if (!action) continue
+    await runAction(tool, action, config)
   }
 
   closeRl()
